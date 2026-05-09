@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and subscription metadata.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin", "recruiter"] },
+        "subscriptionTier": { "type": "string", "enum": ["free", "pro", "business"] },
+        "credits": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role", "subscriptionTier", "credits", "createdAt", "updatedAt"]
+    },
+    "Resume": {
+      "title": "Resume",
+      "description": "A generated or edited resume.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "atsScore": { "type": "integer" },
+        "content": { "type": "string" },
+        "templateId": { "type": "string" },
+        "isPublic": { "type": "boolean" },
+        "publicUrlSlug": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "content", "templateId", "isPublic", "createdAt", "updatedAt"]
+    },
+    "Analytics": {
+      "title": "Analytics Event",
+      "description": "Event tracking for dashboard stats.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "eventType": { "type": "string" },
+        "metadata": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "eventType", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "/resumes/{resumeId}": {
+      "schema": { "$ref": "#/entities/Resume" },
+      "description": "Stores resumes created by users."
+    },
+    "/analytics/{eventId}": {
+      "schema": { "$ref": "#/entities/Analytics" },
+      "description": "Stores analytics events."
+    }
+  }
+}

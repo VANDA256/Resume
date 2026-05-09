@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} { allow read, write: if false; }
+
+    function isValidId(id) { 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function hasRole(role) { return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role; }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'role', 'subscriptionTier', 'credits', 'createdAt', 'updatedAt']) &&
+             data.email is string && data.email.size() <= 200 &&
+             data.role in ['user', 'admin', 'recruiter'] &&
+             data.subscriptionTier in ['free', 'pro', 'business'] &&
+             data.credits is number &&
+             data.createdAt == request.time &&
+             data.updatedAt == request.time;
+    }
+
+    match /users/{userId} {
+      // Users can read their own profile. Admins can read all.
+      allow read: if isSignedIn() && (request.auth.uid == userId || hasRole('admin') || hasRole('recruiter'));
+      
+      // User can create their profile.
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUser(incoming());
+      
+      // User can update basic info. Role and subscriptionTier are restricted.
+      allow update: if isSignedIn() && request.auth.uid == userId &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt']) &&
+        incoming().updatedAt == request.time;
+    }
+
+    function isValidResume(data) {
+       return data.keys().hasAll(['userId', 'title', 'content', 'templateId', 'isPublic', 'createdAt', 'updatedAt']) &&
+              data.userId == request.auth.uid &&
+              data.title is string && data.title.size() <= 200 &&
+              data.content is string && data.content.size() <= 1048576 &&
+              data.templateId is string && data.templateId.size() <= 100 &&
+              data.isPublic is bool &&
+              data.createdAt == request.time &&
+              data.updatedAt == request.time;
+    }
+
+    match /resumes/{resumeId} {
+      allow read: if isSignedIn() && (existing().userId == request.auth.uid || hasRole('admin') || existing().isPublic == true);
+      allow create: if isSignedIn() && isValidId(resumeId) && isValidResume(incoming()) && existsAfter(/databases/$(database)/documents/users/$(request.auth.uid));
+      allow update: if isSignedIn() && existing().userId == request.auth.uid &&
+        incoming().userId == existing().userId &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'atsScore', 'templateId', 'isPublic', 'publicUrlSlug', 'updatedAt']) &&
+        incoming().updatedAt == request.time;
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    function isValidAnalytics(data) {
+       return data.keys().hasAll(['userId', 'eventType', 'createdAt']) &&
+              data.userId == request.auth.uid &&
+              data.eventType is string && data.eventType.size() <= 100 &&
+              data.createdAt == request.time;
+    }
+
+    match /analytics/{eventId} {
+       allow create: if isSignedIn() && isValidId(eventId) && isValidAnalytics(incoming());
+       allow read: if isSignedIn() && (existing().userId == request.auth.uid || hasRole('admin'));
+    }
+  }
+}
